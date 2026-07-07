@@ -6703,10 +6703,3 @@ Price = 0
 Flags = KeyItem
 Description = A faded sea chart that shows the way to a certain island.
 #-------------------------------
-[MOVEJOURNAL]
-Name = Move Journal
-NamePlural = Move Journals
-Pocket = 2
-Price = 0
-Description = A journal detailing advanced move configurations. It lets your Pokémon learn Tutor and Egg moves on the fly.
-FieldUse = Direct
