@@ -1,0 +1,7 @@
+# Essentials/RPG Maker ignores
+Game.ini
+Save Data/
+*.rxdata.bak
+# Personal user settings
+.DS_Store
+Thumbs.db
