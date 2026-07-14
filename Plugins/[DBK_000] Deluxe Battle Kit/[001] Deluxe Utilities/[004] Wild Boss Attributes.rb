@@ -30,6 +30,8 @@ class Pokemon
   
   def calcHP(base, level, iv, ev)
     return 1 if base == 1
+    ev = 0 if ev.nil?
+    iv = 0 if iv.nil?
     iv = ev = 0 if Settings::DISABLE_IVS_AND_EVS
     return ((((base * 2 + iv + (ev / 4)) * level / 100).floor + level + 10) * hp_boost).ceil
   end
