@@ -1,6 +1,9 @@
 # Essentials/RPG Maker ignores
 Game.ini
 Save Data/
+Plugins/
+PBS/
+Gen 9 backup/
 *.rxdata.bak
 # Personal user settings
 .DS_Store
