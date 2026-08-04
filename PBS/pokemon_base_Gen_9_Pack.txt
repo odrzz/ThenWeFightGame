@@ -100,7 +100,7 @@ Habitat = Sea
 Category = Big Fish
 Pokedex = This Pokémon is cloaked in the souls of its comrades who perished during a punishing journey to the river of their birth.
 Generation = 8
-Flags = DefaultForm_2,InheritFormWithEverStone,HasGenderedSprites
+Flags = DefaultForm_2,InheritFormWithEverStone
 WildItemUncommon = DEEPSEATOOTH
 #-------------------------------
 [SNEASLER]
