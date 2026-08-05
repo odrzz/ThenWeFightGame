@@ -401,6 +401,7 @@ class TrainerBattle
     foe_trainers, foe_items, foe_party, foe_party_starts = TrainerBattle.generate_foes(*args)
     # Generate information for the player and partner trainer(s)
     player_trainers, ally_items, player_party, player_party_starts = BattleCreationHelperMethods.set_up_player_trainers(foe_party)
+    RandomBattlebackManager.set_random_battleback
     # Create the battle scene (the visual side of it)
     scene = BattleCreationHelperMethods.create_battle_scene
     # Create the battle class (the mechanics side of it)

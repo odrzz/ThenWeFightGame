@@ -120,8 +120,8 @@ Pokemon = BLASTOISE,63
 [POKEMONTRAINER_Lyra,Test]
 LoseText = Very good.
 Pokemon = TYPHLOSION,50
-    Moves = QUICKATTACK
-    Ability = DROUGHT
+    Moves = TACKLE
+    Ability = PICKUP
     Gender = male
     IV = 20,20,20,20,20,20
     Shiny = true
