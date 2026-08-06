@@ -25,7 +25,7 @@ module Settings
   # species you are encountering for the first time. When true, type effectiveness 
   # will always be displayed, even for new species.
   #-----------------------------------------------------------------------------
-  SHOW_TYPE_EFFECTIVENESS_FOR_NEW_SPECIES = false
+  SHOW_TYPE_EFFECTIVENESS_FOR_NEW_SPECIES = true
 end
 
 
@@ -124,12 +124,20 @@ class Battle::Scene
   def pbHideInfoUI
     return if pbInSafari?
     @enhancedUIToggle = nil
-    @sprites["enhancedUI"].visible = false
-    @enhancedUIOverlay.clear
+    @sprites["enhancedUI"].visible = false if @sprites["enhancedUI"]
+    @enhancedUIOverlay.clear if @enhancedUIOverlay
     @battle.allBattlers.each do |b|
-      @sprites["info_icon#{b.index}"].visible = false
+      @sprites["info_icon#{b.index}"].visible = false if @sprites["info_icon#{b.index}"]
     end
     5.times { |i| pbUpdateBallIcon(i, nil, true) }
+    
+    # Clean up the dynamic party icon sprites from the selection menu
+    2.times do |side|
+      NUM_BALLS.times do |slot|
+        sprite_key = "party_icon_#{side}_#{slot}"
+        @sprites[sprite_key].visible = false if @sprites[sprite_key]
+      end
+    end
   end
   
   def pbRefreshUIPrompt(idxBattler = nil, window = nil)

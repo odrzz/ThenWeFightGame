@@ -3,6 +3,27 @@
 #===============================================================================
 class Battle::Scene
   #-----------------------------------------------------------------------------
+  # Explicitly hides all custom party icon sprites.
+  #-----------------------------------------------------------------------------
+  def pbHidePartyIcons
+    2.times do |s|
+      NUM_BALLS.times do |slot|
+        sprite_key = "party_icon_#{s}_#{slot}"
+        @sprites[sprite_key].visible = false if @sprites[sprite_key]
+      end
+    end
+  end
+
+  #-----------------------------------------------------------------------------
+  # Aliased to automatically hide party icons whenever Info UI is hidden.
+  #-----------------------------------------------------------------------------
+  alias party_icon_pbHideInfoUI pbHideInfoUI
+  def pbHideInfoUI
+    party_icon_pbHideInfoUI
+    pbHidePartyIcons
+  end
+
+  #-----------------------------------------------------------------------------
   # Toggles the visibility of the selection menu.
   #-----------------------------------------------------------------------------
   def pbToggleBattleInfo
@@ -48,14 +69,23 @@ class Battle::Scene
   end
   
   #-----------------------------------------------------------------------------
-  # Draws the selection menu.
+  # Draws the selection menu and mini party Pokémon icons.
   #-----------------------------------------------------------------------------
   def pbUpdateBattlerSelection(idxSide, idxPoke, select = false)
-    @enhancedUIOverlay.clear
+    @enhancedUIOverlay.clear if @enhancedUIOverlay
+    
+    # Hide all party icons FIRST so they don't linger on sub-screens
+    pbHidePartyIcons
+
     return if @enhancedUIToggle != :battler
     ypos = 68
     textPos = []
     imagePos = [[@path + "select_bg", 0, ypos]]
+    
+    # Load background graphic for grey owner bar
+    owner_bmp = AnimatedBitmap.new(@path + "info_owner")
+    owner_bg = owner_bmp.bitmap
+
     2.times do |side|
       trainers = []
       count = @battle.pbSideBattlerCount(side)
@@ -91,9 +121,11 @@ class Battle::Scene
                        [@battle.pbGetOwnerFromBattlerIndex(b.index).name, nameX - 10, iconY + 14, 2, BASE_LIGHT, SHADOW_LIGHT])
         end
         @battle.player.each_with_index { |t, i| trainers.push([t, i]) if t.able_pokemon_count > 0 }
-        ballY = ypos + 154
-        ballXFirst = 35
-        ballXLast = Graphics.width - (16 * NUM_BALLS) - 35
+        
+        # Shifted down to clear player's main selection box
+        ballY = ypos + 172
+        ballXFirst = 20
+        ballXLast = Graphics.width - 168 - 20
         ballOffset = 2
       #-------------------------------------------------------------------------
       # Opponent's side.
@@ -129,17 +161,19 @@ class Battle::Scene
         end
         if @battle.opponent
           @battle.opponent.each_with_index { |t, i| trainers.push([t, i]) if t.able_pokemon_count > 0 } 
-          ballY = ypos - 17
-          ballXFirst = Graphics.width - (16 * NUM_BALLS) - 35
-          ballXLast = 35
+          
+          # Shifted up to clear opponent's main selection box
+          ballY = ypos - 32
+          ballXFirst = Graphics.width - 168 - 20
+          ballXLast = 20
           ballOffset = 3
         end
       end
       #-------------------------------------------------------------------------
-      # Draws party ball lineups.
+      # Draws party icon lineups (Replacing Pokeball icons).
       #-------------------------------------------------------------------------
       if !trainers.empty?
-        ballXMiddle = (Graphics.width / 2) - 48
+        ballXMiddle = (Graphics.width / 2) - 72
         ballX = ballXMiddle
         trainers.each do |array|
           trainer, idxTrainer = *array
@@ -150,15 +184,51 @@ class Battle::Scene
             else                        ballX = ballXMiddle
             end
           end
-          imagePos.push([@path + "info_owner", ballX - 16, ballY - ballOffset, 0, 0, 128, 20])
+
+          # Stretch info_owner graphic horizontally (168px) and vertically (24px)
+          barX = ballX - 12
+          barWidth = 168
+          barHeight = 24
+          @enhancedUIOverlay.stretch_blt(
+            Rect.new(barX, ballY - ballOffset - 2, barWidth, barHeight),
+            owner_bg,
+            Rect.new(0, 0, 128, 20)
+          )
+          
           NUM_BALLS.times do |slot|
-            idx = 0
-            if !trainer.party[slot]                   then idx = 3 # Empty
-            elsif !trainer.party[slot].able?          then idx = 2 # Fainted
-            elsif trainer.party[slot].status != :NONE then idx = 1 # Status
+            pkmn = trainer.party[slot]
+            sprite_key = "party_icon_#{side}_#{slot}"
+            
+            # Create sprite dynamically if it doesn't exist
+            if !@sprites[sprite_key]
+              @sprites[sprite_key] = PokemonIconSprite.new(nil, @viewport)
+              @sprites[sprite_key].setOffset(PictureOrigin::CENTER)
             end
-            imagePos.push([@path + "info_party", ballX + (slot * 16), ballY, idx * 15, 0, 15, 15])
+            
+            icon_sprite = @sprites[sprite_key]
+            
+            if pkmn
+              icon_sprite.pokemon = pkmn
+              icon_sprite.x = ballX + (slot * 24) + 12  # Spaced 24px apart
+              icon_sprite.y = ballY + 8
+              icon_sprite.z = 500
+              icon_sprite.zoom_x = 0.60
+              icon_sprite.zoom_y = 0.60
+              icon_sprite.visible = true
+              
+              # Visual feedback: Darkness for fainted, subtle tone for status conditions
+              if !pkmn.able?
+                icon_sprite.color = Color.new(0, 0, 0, 180)
+              elsif pkmn.status != :NONE
+                icon_sprite.color = Color.new(200, 50, 50, 80)
+              else
+                icon_sprite.color = Color.new(0, 0, 0, 0)
+              end
+            else
+              icon_sprite.visible = false
+            end
           end
+          
           # Draws each trainer's Wonder Launcher points.
           if @battle.launcherBattle?
             path = Settings::WONDER_LAUNCHER_PATH
@@ -174,6 +244,8 @@ class Battle::Scene
         end
       end
     end
+    
+    owner_bmp.dispose
     pbUpdateBattlerIcons
     pbDrawImagePositions(@enhancedUIOverlay, imagePos)
     pbDrawTextPositions(@enhancedUIOverlay, textPos)
@@ -204,6 +276,7 @@ class Battle::Scene
       break if Input.trigger?(Input::BACK) || Input.trigger?(Input::JUMPUP)
       if Input.trigger?(Input::USE)
         pbPlayDecisionSE
+        pbHidePartyIcons  # Hide party icons before opening inspect window
         ret = pbOpenBattlerInfo(battler, battlers)
         case ret
         when Array
@@ -280,7 +353,7 @@ class Battle::Scene
       if Input.trigger?(Input::LEFT)
         cw.index -= 1 if (cw.index & 1) == 1
       elsif Input.trigger?(Input::RIGHT)
-        cw.index += 1 if (cw.index & 1) == 0
+        cw.index += 1 if (cw.index & 0) == 0
       elsif Input.trigger?(Input::UP)
         cw.index -= 2 if (cw.index & 2) == 2
       elsif Input.trigger?(Input::DOWN)
