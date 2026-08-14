@@ -84,29 +84,34 @@ end
 class Battle
   attr_accessor :battleAI, :party1starts, :party2starts, :ally_items
   alias vms_initialize initialize unless method_defined?(:vms_initialize)
+  
   def initialize(*args)
     vms_initialize(*args)
-    @vms_random_calls = 0
+    init_vms_rng
+  end
+
+  def init_vms_rng
+    seed = $game_temp.vms[:seed] rescue nil
+    if seed
+      seed = seed.to_i unless seed.is_a?(Integer)
+      @vms_rng = Random.new(seed)
+    else
+      @vms_rng = Random.new
+    end
   end
 
   def pbRandom(x)
     in_vms_battle = VMS.is_connected? && !@internalBattle &&
                     (!$game_temp.vms[:battle_player].nil? || $game_temp.vms[:mb_in_battle])
     if in_vms_battle
-      seed = $game_temp.vms[:seed]
-      seed = seed.to_i unless seed.is_a?(Integer)
-      @vms_random_calls ||= 0
-      @vms_random_calls += 1
-      # Use turnCount and call counter to ensure unique but synced results
-      srand(seed + (@turnCount * 1000) + @vms_random_calls)
-      return rand(x)
+      @vms_rng ||= Random.new(($game_temp.vms[:seed] || 0).to_i)
+      return @vms_rng.rand(x)
     end
     return rand(x)
   end
 
   alias vms_pbCommandPhaseLoop pbCommandPhaseLoop unless method_defined?(:vms_pbCommandPhaseLoop)
   def pbCommandPhaseLoop(isPlayer)
-    @vms_random_calls = 0 if isPlayer # Reset counter for the new turn
     vms_pbCommandPhaseLoop(isPlayer)
     if VMS.is_connected? && isPlayer && !VMS.multibattle_active?
       is_single = $game_temp.vms[:battle_type] != :double
@@ -121,14 +126,10 @@ class Battle
         end
       end
 
-      mega_idx_0 = -1
-      mega_idx_2 = -1
-      z_idx_0 = -1
-      z_idx_2 = -1
-      dyna_idx_0 = -1
-      dyna_idx_2 = -1
-      tera_idx_0 = -1
-      tera_idx_2 = -1
+      mega_idx_0 = -1; mega_idx_2 = -1
+      z_idx_0 = -1;    z_idx_2 = -1
+      dyna_idx_0 = -1; dyna_idx_2 = -1
+      tera_idx_0 = -1; tera_idx_2 = -1
 
       @battlers.each do |battler|
         next if !battler || !pbOwnedByPlayer?(battler.index)
@@ -136,42 +137,27 @@ class Battle
         battler_idx = battler.index
 
         if @megaEvolution[0][owner] >= 0 && @megaEvolution[0][owner] == battler_idx
-          if battler_idx == 0
-            mega_idx_0 = 0
-          elsif battler_idx == 2
-            mega_idx_2 = 2
-          end
+          mega_idx_0 = 0 if battler_idx == 0
+          mega_idx_2 = 2 if battler_idx == 2
         end
         begin
           if @zMove[0][owner] >= 0 && @zMove[0][owner] == battler_idx
-            if battler_idx == 0
-              z_idx_0 = 0
-            elsif battler_idx == 2
-              z_idx_2 = 2
-            end
+            z_idx_0 = 0 if battler_idx == 0
+            z_idx_2 = 2 if battler_idx == 2
           end
-        rescue
-        end
+        rescue; end
         begin
           if @dynamax[0][owner] >= 0 && @dynamax[0][owner] == battler_idx
-            if battler_idx == 0
-              dyna_idx_0 = 0
-            elsif battler_idx == 2
-              dyna_idx_2 = 2
-            end
+            dyna_idx_0 = 0 if battler_idx == 0
+            dyna_idx_2 = 2 if battler_idx == 2
           end
-        rescue
-        end
+        rescue; end
         begin
           if @terastallize[0][owner] >= 0 && @terastallize[0][owner] == battler_idx
-            if battler_idx == 0
-              tera_idx_0 = 0
-            elsif battler_idx == 2
-              tera_idx_2 = 2
-            end
+            tera_idx_0 = 0 if battler_idx == 0
+            tera_idx_2 = 2 if battler_idx == 2
           end
-        rescue
-        end
+        rescue; end
       end
 
       $game_temp.vms[:state] = [:battle_command, $game_temp.vms[:state][1], @turnCount, picks, mega_idx_0, mega_idx_2, z_idx_0, z_idx_2, dyna_idx_0, dyna_idx_2, tera_idx_0, tera_idx_2]
@@ -190,8 +176,7 @@ class Battle
         z_move   = (@zMove[0][owner] == 0)              rescue false
         dyna     = (@dynamax[0][owner] == 0)            rescue false
         tera     = (@terastallize[0][owner] == 0)       rescue false
-      rescue
-      end
+      rescue; end
       $game_temp.vms[:state] = [:multibattle_command, $game_temp.vms[:mb_lobby_id], $game_temp.vms[:mb_team_idx], $game_temp.vms[:mb_slot_idx], @turnCount, pick, mega, z_move, dyna, tera]
     end
   end
@@ -331,8 +316,6 @@ class Battle
                 end
                 @battle.pbRegisterMove(idxBattler, player.state[3][picks_idx][1], false)
                 @battle.pbRegisterTarget(idxBattler, target)
-                # New format: player.state[4-11] = [mega_0, mega_2, z_0, z_2, dyna_0, dyna_2, tera_0, tera_2]
-                # Their battler 0 (left) → our idxBattler 1, their battler 2 (right) → our idxBattler 3
                 if player.state.length >= 12
                   mega_0 = player.state[4]
                   mega_2 = player.state[5]
@@ -343,9 +326,7 @@ class Battle
                   tera_0 = player.state[10]
                   tera_2 = player.state[11]
 
-                  # Map: their battler 0 (L) → our battler 1 (L), their battler 2 (R) → our battler 3 (R)
                   if idxBattler == 1
-                    # Processing their battler 0 (their left = our left when facing them)
                     @battle.pbRegisterMegaEvolution(idxBattler) if mega_0 == 0
                     @battle.pbRegisterZMove(idxBattler) if z_0 == 0
                     @battle.pbRegisterDynamax(idxBattler) if dyna_0 == 0
@@ -354,7 +335,6 @@ class Battle
                       @battle.pbRegisterTerastallize(idxBattler)
                     end
                   elsif idxBattler == 3
-                    # Processing their battler 2 (their right = our right when facing them)
                     @battle.pbRegisterMegaEvolution(idxBattler) if mega_2 == 2
                     @battle.pbRegisterZMove(idxBattler) if z_2 == 2
                     @battle.pbRegisterDynamax(idxBattler) if dyna_2 == 2
@@ -369,7 +349,6 @@ class Battle
             end
           elsif opp_turn < @battle.turnCount
             # Opponent is behind, we must wait for them to catch up
-            # This shouldn't happen often if both are in sync
           end
         end
 
@@ -390,21 +369,14 @@ end
 class TrainerBattle
   def self.start_core_VMS(*args)
     outcome_variable = $game_temp.battle_rules["outcomeVar"] || 1
-    # Skip battle if the player has no able Pokémon, or if holding Ctrl in Debug mode
     if BattleCreationHelperMethods.skip_battle?
       return BattleCreationHelperMethods.skip_battle(outcome_variable, true)
     end
-    # Record information about party Pokémon to be used at the end of battle (e.g.
-    # comparing levels for an evolution check)
     EventHandlers.trigger(:on_start_battle)
-    # Generate information for the foes
     foe_trainers, foe_items, foe_party, foe_party_starts = TrainerBattle.generate_foes(*args)
-    # Generate information for the player and partner trainer(s)
     player_trainers, ally_items, player_party, player_party_starts = BattleCreationHelperMethods.set_up_player_trainers(foe_party)
     RandomBattlebackManager.set_random_battleback
-    # Create the battle scene (the visual side of it)
     scene = BattleCreationHelperMethods.create_battle_scene
-    # Create the battle class (the mechanics side of it)
     battle = Battle.new(scene, player_party, foe_party, player_trainers, foe_trainers)
     battle.battleAI     = Battle::VMS_AI.new(battle)
     battle.party1starts = player_party_starts
